@@ -37,6 +37,17 @@ io.sockets.on('connection', function(socket) {
 		data.socket_session_id = socket.id;
 		getUserRecordForChat(data);
 	});
+	
+	socket.on('chat_history',function(data){
+		data.socket_session_id = socket.id;
+		getChatHistory(data);
+	});
+	
+	socket.on('new_message', function(data){
+		data.socket_session_id = socket.id;
+		sendNewMessage(data);
+	});
+	
 	connectionsArray.push(socket);
 });
 
@@ -107,5 +118,109 @@ getUserRecordForChat = function(data){
 	})
 	.on('end', function() {
 		io.sockets.socket(data.socket_session_id).emit('online_user_details', {status : 1, message: "online user details", user_details: users});
+	});
+}
+
+getChatHistory = function(data){
+	var update_user = connection.query('UPDATE users SET socket_session_id = "'+data.socket_session_id+'" WHERE id = '+data.user_id+''); 
+	var user_conversation_id = connection.query('select * from conversation_user_mapping where ((from_id = "'+data.user_id+'" and to_id = "'+data.sender_id+'") OR (from_id = "'+data.sender_id+'" and to_id = "'+data.user_id+'"))');
+	
+	users = []; // this array will contain the result of our db query
+	
+	user_conversation_id
+	.on('error', function(err) {
+		console.log(err);
+	})
+	.on('result', function(user) {
+		users.push(user);
+	})
+	.on('end', function() {
+		if(users.length > 0){
+			console.log(users[0].id);
+			var get_chat_history = connection.query('select * from chat where conversation_id = "'+users[0].id+'"');
+			
+			chat_history = []; // this array will contain the result of our db query
+			get_chat_history
+			.on('error', function(err) {
+				console.log(err);
+			})
+			.on('result', function(user) {
+				//console.log(user);
+				chat_history.push(user);
+			})
+			.on('end', function() {
+				io.sockets.socket(data.socket_session_id).emit('chat_history_response', {status : 1, message: chat_history});
+			});
+			
+		}else{
+			io.sockets.socket(data.socket_session_id).emit('chat_history_response', {status : 2, message: "No Previous Chat History"});
+		}
+	});
+}
+
+sendNewMessage = function(data){
+	var user_conversation_id = connection.query('select * from conversation_user_mapping where ((from_id = "'+data.user_id+'" and to_id = "'+data.sender_id+'") OR (from_id = "'+data.sender_id+'" and to_id = "'+data.user_id+'"))');
+	
+	users = []; // this array will contain the result of our db query
+	
+	user_conversation_id
+	.on('error', function(err) {
+		console.log(err);
+	})
+	.on('result', function(user) {
+		users.push(user);
+	})
+	.on('end', function() {
+		if(users.length > 0){
+			console.log(users[0].id);
+			var new_message_insertation = connection.query('insert into chat (`conversation_id`, `sender_id`, `message_type`, `message`) values ("'+users[0].id+'", "'+data.user_id+'", "1" ,"'+data.message+'")');
+				
+			var get_socket_session_id = connection.query('select socket_session_id from users where id = "'+data.sender_id+'"');
+			
+			to_id = []; // this array will contain the result of our db query
+			get_socket_session_id
+			.on('error', function(err) {
+				console.log(err);
+			})
+			.on('result', function(user) {
+				//console.log(user);
+				to_id.push(user);
+			})
+			.on('end', function() {
+				io.sockets.socket(to_id[0].socket_session_id).emit('chat_history_response', {status : 1, message: data.message});
+			});
+		}else{
+			var conversation_id = connection.query('insert into conversation_user_mapping (`from_id`, `to_id`) values ("'+data.user_id+'", "'+data.sender_id+'")');
+			conversation_ids = []; // this array will contain the result of our db query
+			
+			conversation_id
+			.on('error', function(err) {
+				console.log(err);
+			})
+			.on('result', function(user) {
+				console.log(user);
+				conversation_ids.push(user.insertId);
+			})
+			.on('end', function() {
+				console.log(conversation_ids);
+				var new_message_insertation = connection.query('insert into chat (`conversation_id`, `sender_id`, `message_type`, `message`) values ("'+conversation_ids+'", "'+data.user_id+'", "1" ,"'+data.message+'")');
+				
+				var get_socket_session_id = connection.query('select socket_session_id from users where id = "'+data.sender_id+'"');
+				
+				to_id = []; // this array will contain the result of our db query
+				get_socket_session_id
+				.on('error', function(err) {
+					console.log(err);
+				})
+				.on('result', function(user) {
+					//console.log(user);
+					to_id.push(user);
+				})
+				.on('end', function() {
+					console.log(to_id);
+					io.sockets.socket(to_id[0].socket_session_id).emit('chat_history_response', {status : 1, message: data.message});
+				});
+			});
+		}
 	});
 }
