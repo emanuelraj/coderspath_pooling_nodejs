@@ -8,7 +8,7 @@ var app = require('http').createServer(),
   connection = mysql.createConnection({
     host: '127.0.0.1',
     user: 'root',
-    password: '',
+    password: 'root',
     database: 'pooling',
     port: 3306
   });
@@ -18,15 +18,17 @@ connection.connect(function(err) {
   console.log(err);
 });
 
-// creating the server ( localhost:8000 )
+// creating the server ( http://192.168.1.135:8000 )
 app.listen(8000);
 
 
 io.sockets.on('connection', function(socket) {
+	console.log("Connected");
 	socket.on('new_registration', function (data) {
 		console.log("Testing");
+		console.log("New registration",data);
 		data.socket_session_id = socket.id;
-		userRegistration(data);
+		userRegistration(JSON.parse(data), socket.id);
 	});
 	socket.on('login', function(data){
 		data.socket_session_id = socket.id;
@@ -45,13 +47,18 @@ io.sockets.on('connection', function(socket) {
 	
 	socket.on('new_message', function(data){
 		data.socket_session_id = socket.id;
+		console.log("Contacted");
 		sendNewMessage(data);
 	});
 	
 	connectionsArray.push(socket);
 });
 
-userRegistration = function(data){
+userRegistration = function(data, socket_session_id){
+	console.log("Datas");
+	console.log(data.email);
+	console.log(data.name);
+	console.log(data.password);
 	var check_user = connection.query('select * from users where email = "'+data.email+'"');
 	users = []; // this array will contain the result of our db query
 
@@ -64,15 +71,18 @@ userRegistration = function(data){
 	})
 	.on('end', function() {
 		console.log(users.length);
+		console.log(socket_session_id);
 		if(users.length > 0){		
-			io.sockets.socket(data.socket_session_id).emit('registration_response', {status : 0, message: "Email Already Exist!!"});
+			io.to(socket_session_id).emit('registration_response', {status : 0, message: "Email Already Exist!!"});
 		}else{
 			var md5sum = crypto.createHash('md5');
 			var hashed_password = data.password;
 			hashed_password = md5sum.update(hashed_password);
 			hashed_password = md5sum.digest('hex');
-			var insert_new_user = connection.query('insert into users (`name`, `email`, `password`, `socket_session_id`) values ("'+data.name+'", "'+data.email+'", "'+hashed_password+'", "'+data.socket_session_id+'")');
-			io.sockets.socket(data.socket_session_id).emit('registration_response', {status : 1, message: "Registered Successfully!!!!"});
+			var insert_new_user = connection.query('insert into users (`name`, `email`, `password`, `socket_session_id`) values ("'+data.name+'", "'+data.email+'", "'+hashed_password+'", "'+socket_session_id+'")');
+			io.to(socket_session_id).emit('registration_response', {status : 1,
+			message: "Registered Successfully."});
+			console.log("Success sent");
 		}	
 	});
 }
@@ -97,9 +107,9 @@ userLogin = function(data){
 		console.log(hashed_password);
 		console.log(users[users.length - 1].password);
 		if(hashed_password == users[users.length - 1].password){
-			io.sockets.socket(data.socket_session_id).emit('login_response', {status : 1, message: "Logged in Successfully!!", user_details: users});
+			io.to(data.socket_session_id).emit('login_response', {status : 1, message: "Logged in Successfully!!", user_details: users});
 		}else{
-			io.sockets.socket(data.socket_session_id).emit('login_response', {status : 0, message: "Username or Password Wrong!!"});
+			io.to(data.socket_session_id).emit('login_response', {status : 0, message: "Username or Password Wrong!!"});
 		}	
 	});
 }
@@ -117,7 +127,7 @@ getUserRecordForChat = function(data){
 		users.push(user);
 	})
 	.on('end', function() {
-		io.sockets.socket(data.socket_session_id).emit('online_user_details', {status : 1, message: "online user details", user_details: users});
+		io.to(data.socket_session_id).emit('online_user_details', {status : 1, message: "online user details", user_details: users});
 	});
 }
 
@@ -149,11 +159,11 @@ getChatHistory = function(data){
 				chat_history.push(user);
 			})
 			.on('end', function() {
-				io.sockets.socket(data.socket_session_id).emit('chat_history_response', {status : 1, message: chat_history});
+				io.to(data.socket_session_id).emit('chat_history_response', {status : 1, message: chat_history});
 			});
 			
 		}else{
-			io.sockets.socket(data.socket_session_id).emit('chat_history_response', {status : 2, message: "No Previous Chat History"});
+			io.to(data.socket_session_id).emit('chat_history_response', {status : 2, message: "No Previous Chat History"});
 		}
 	});
 }
@@ -187,7 +197,7 @@ sendNewMessage = function(data){
 				to_id.push(user);
 			})
 			.on('end', function() {
-				io.sockets.socket(to_id[0].socket_session_id).emit('chat_history_response', {status : 1, message: data.message});
+				io.to(to_id[0].socket_session_id).emit('chat_history_response', {status : 1, message: data.message});
 			});
 		}else{
 			var conversation_id = connection.query('insert into conversation_user_mapping (`from_id`, `to_id`) values ("'+data.user_id+'", "'+data.sender_id+'")');
@@ -218,7 +228,7 @@ sendNewMessage = function(data){
 				})
 				.on('end', function() {
 					console.log(to_id);
-					io.sockets.socket(to_id[0].socket_session_id).emit('chat_history_response', {status : 1, message: data.message});
+					io.to(to_id[0].socket_session_id).emit('chat_history_response', {status : 1, message: data.message});
 				});
 			});
 		}
