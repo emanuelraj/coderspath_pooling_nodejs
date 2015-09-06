@@ -8,7 +8,8 @@ var app = require('http').createServer(),
   connection = mysql.createConnection({
     host: '127.0.0.1',
     user: 'root',
-    password: 'root',
+	password: '',
+//    password: 'root',
     database: 'pooling',
     port: 3306
   });
@@ -26,6 +27,7 @@ io.sockets.on('connection', function(socket) {
 	console.log("Connected");
 	socket.on('new_registration', function (data) {
 		console.log("Testing");
+		console.log(socket.id);
 		console.log("New registration",data);
 		data.socket_session_id = socket.id;
 		userRegistration(JSON.parse(data), socket.id);
@@ -80,8 +82,19 @@ userRegistration = function(data, socket_session_id){
 			hashed_password = md5sum.update(hashed_password);
 			hashed_password = md5sum.digest('hex');
 			var insert_new_user = connection.query('insert into users (`name`, `email`, `password`, `socket_session_id`) values ("'+data.name+'", "'+data.email+'", "'+hashed_password+'", "'+socket_session_id+'")');
-			io.to(socket_session_id).emit('registration_response', {status : 1,
-			message: "Registered Successfully."});
+			user_id = [];
+			insert_new_user
+			.on('error', function(err) {
+				console.log(err);
+			})
+			.on('result', function(user) {
+				console.log(user);
+				user_id.push(user.insertId);
+			})
+			.on('end', function() {
+				io.to(socket_session_id).emit('registration_response', {status : 1, message: "Registered Successfully.", user_id: user_id});
+			});
+
 			console.log("Success sent");
 		}	
 	});
