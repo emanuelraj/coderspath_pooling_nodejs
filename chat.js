@@ -34,7 +34,7 @@ io.sockets.on('connection', function(socket) {
 	});
 	socket.on('login', function(data){
 		data.socket_session_id = socket.id;
-		userLogin(data);
+		userLogin(JSON.parse(data), socket.id);
 	});
 	
 	socket.on('chat_request',function(data){
@@ -44,7 +44,7 @@ io.sockets.on('connection', function(socket) {
 	
 	socket.on('chat_history',function(data){
 		data.socket_session_id = socket.id;
-		getChatHistory(data);
+		getChatHistory(JSON.parse(data), socket.id);
 	});
 	
 	socket.on('new_message', function(data){
@@ -125,8 +125,10 @@ getListOfUsers = function(data, socket_session_id, user_id) {
 	console.log("Success sent");
 }
 
-userLogin = function(data){
-	var check_login = connection.query('select * from users where email = "'+data.email+'"');
+userLogin = function(data,socket_session_id){
+	console.log(data.email);
+	console.log(data.password);
+	var check_login = connection.query('select name,email,password,id from users where email ="'+data.email+'"');
 	users = []; // this array will contain the result of our db query
 
 	check_login
@@ -137,17 +139,20 @@ userLogin = function(data){
 		users.push(user);
 	})
 	.on('end', function() {
-		//console.log(users.length);
+		console.log(users.length);
 		var md5sum = crypto.createHash('md5');
 		var hashed_password = data.password;
 		hashed_password = md5sum.update(hashed_password);
 		hashed_password = md5sum.digest('hex');
 		console.log(hashed_password);
-		console.log(users[users.length - 1].password);
+		console.log(users[0].password);
 		if(hashed_password == users[users.length - 1].password){
-			io.to(data.socket_session_id).emit('login_response', {status : 1, message: "Logged in Successfully!!", users_list: users});
+			console.log({status : 1, message: "Logged in Successfully!!",  user_id : users[users.length - 1].id});
+			io.to(socket_session_id).emit('login_response',
+			{status : 1, message: "Logged in Successfully!!",  user_id : users[users.length - 1].id});
 		}else{
-			io.to(data.socket_session_id).emit('login_response', {status : 0, message: "Username or Password Wrong!!"});
+			io.to(socket_session_id).emit('login_response', {status : 0,
+			message: "Username or Password Wrong!!"});
 		}	
 	});
 }
@@ -172,8 +177,11 @@ getUserRecordForChat = function(data, socket_session_id){
 	});
 }
 
-getChatHistory = function(data){
-	var update_user = connection.query('UPDATE users SET socket_session_id = "'+data.socket_session_id+'" WHERE id = '+data.user_id+''); 
+getChatHistory = function(data,socket_session_id){
+	console.log("Chat History");
+	console.log(data.user_id);
+	console.log(data.sender_id);
+	var update_user = connection.query('UPDATE users SET socket_session_id = "'+socket_session_id+'" WHERE id = '+data.user_id+'');
 	var user_conversation_id = connection.query('select * from conversation_user_mapping where ((from_id = "'+data.user_id+'" and to_id = "'+data.sender_id+'") OR (from_id = "'+data.sender_id+'" and to_id = "'+data.user_id+'"))');
 	
 	users = []; // this array will contain the result of our db query
@@ -188,7 +196,7 @@ getChatHistory = function(data){
 	.on('end', function() {
 		if(users.length > 0){
 			console.log(users[0].id);
-			var get_chat_history = connection.query('select * from chat where conversation_id = "'+users[0].id+'"');
+			var get_chat_history = connection.query('select sender_id, message from chat where conversation_id = "'+users[0].id+'"');
 			
 			chat_history = []; // this array will contain the result of our db query
 			get_chat_history
@@ -200,11 +208,11 @@ getChatHistory = function(data){
 				chat_history.push(user);
 			})
 			.on('end', function() {
-				io.to(data.socket_session_id).emit('chat_history_response', {status : 1, message: chat_history});
+				io.to(socket_session_id).emit('chat_history_response', {status : 1, message: chat_history});
 			});
 			
 		}else{
-			io.to(data.socket_session_id).emit('chat_history_response', {status : 2, message: "No Previous Chat History"});
+			io.to(socket_session_id).emit('chat_history_response', {status : 2, message: "No Previous Chat History"});
 		}
 	});
 }
