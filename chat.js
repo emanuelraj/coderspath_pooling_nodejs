@@ -8,8 +8,8 @@ var app = require('http').createServer(),
   connection = mysql.createConnection({
     host: '127.0.0.1',
     user: 'root',
-	password: '',
-//    password: 'root',
+	//password: '',
+    password: 'root',
     database: 'pooling',
     port: 3306
   });
@@ -39,7 +39,7 @@ io.sockets.on('connection', function(socket) {
 	
 	socket.on('chat_request',function(data){
 		data.socket_session_id = socket.id;
-		getUserRecordForChat(data);
+		getUserRecordForChat(JSON.parse(data), socket.id);
 	});
 	
 	socket.on('chat_history',function(data){
@@ -50,7 +50,7 @@ io.sockets.on('connection', function(socket) {
 	socket.on('new_message', function(data){
 		data.socket_session_id = socket.id;
 		console.log("Contacted");
-		sendNewMessage(data);
+		sendNewMessage(JSON.parse(data), socket.id);
 	});
 	
 	connectionsArray.push(socket);
@@ -92,12 +92,37 @@ userRegistration = function(data, socket_session_id){
 				user_id.push(user.insertId);
 			})
 			.on('end', function() {
-				io.to(socket_session_id).emit('registration_response', {status : 1, message: "Registered Successfully.", user_id: user_id});
+				getListOfUsers(data, socket_session_id, user_id[0]);
 			});
 
-			console.log("Success sent");
 		}	
 	});
+}
+
+
+getListOfUsers = function(data, socket_session_id, user_id) {
+	var get_users = connection.query('select name, id from users where email != "' + data.email+'"');
+	users = []; // this array will contain the result of our db query
+
+	get_users
+	.on('error', function(err) {
+		console.log(err);
+	})
+	.on('result', function(user) {
+		users.push(user);
+	})
+	.on('end', function() {
+		console.log(users);
+		if(users.length > 0){
+			io.to(socket_session_id).emit('registration_response', {status : 1, message:
+						"Registered Successfully.", user_id: user_id, users_list : users});
+		} else {
+			io.to(socket_session_id).emit('registration_response', {status : 1, message:
+										"Registered Successfully.", user_id: user_id});
+		}
+	});
+
+	console.log("Success sent");
 }
 
 userLogin = function(data){
@@ -120,16 +145,18 @@ userLogin = function(data){
 		console.log(hashed_password);
 		console.log(users[users.length - 1].password);
 		if(hashed_password == users[users.length - 1].password){
-			io.to(data.socket_session_id).emit('login_response', {status : 1, message: "Logged in Successfully!!", user_details: users});
+			io.to(data.socket_session_id).emit('login_response', {status : 1, message: "Logged in Successfully!!", users_list: users});
 		}else{
 			io.to(data.socket_session_id).emit('login_response', {status : 0, message: "Username or Password Wrong!!"});
 		}	
 	});
 }
 
-getUserRecordForChat = function(data){
-	var update_user = connection.query('UPDATE users SET socket_session_id = "'+data.socket_session_id+'" WHERE id = '+data.user_id+''); 
-	var user_details = connection.query('select * from users where id != "'+data.user_id+'"');
+getUserRecordForChat = function(data, socket_session_id){
+	console.log(data.user_id);
+	console.log(socket_session_id);
+	var update_user = connection.query('UPDATE users SET socket_session_id = "'+socket_session_id+'" WHERE id = '+data.user_id+'');
+	var user_details = connection.query('select name,id from users where id != "'+data.user_id+'"');
 	users = []; // this array will contain the result of our db query
 
 	user_details
@@ -140,7 +167,8 @@ getUserRecordForChat = function(data){
 		users.push(user);
 	})
 	.on('end', function() {
-		io.to(data.socket_session_id).emit('online_user_details', {status : 1, message: "online user details", user_details: users});
+		console.log({status : 1, message: "online user details", user_details: users});
+		io.to(socket_session_id).emit('online_user_details', {status : 1, message: "online user details", users_list: users});
 	});
 }
 
@@ -181,7 +209,7 @@ getChatHistory = function(data){
 	});
 }
 
-sendNewMessage = function(data){
+sendNewMessage = function(data, socket_session_id){
 	var user_conversation_id = connection.query('select * from conversation_user_mapping where ((from_id = "'+data.user_id+'" and to_id = "'+data.sender_id+'") OR (from_id = "'+data.sender_id+'" and to_id = "'+data.user_id+'"))');
 	
 	users = []; // this array will contain the result of our db query
@@ -210,7 +238,9 @@ sendNewMessage = function(data){
 				to_id.push(user);
 			})
 			.on('end', function() {
-				io.to(to_id[0].socket_session_id).emit('chat_history_response', {status : 1, message: data.message});
+				console.log(to_id[0]);
+				console.log({status : 1, message: data.message, sender_id: data.user_id});
+				io.to(to_id[0].socket_session_id).emit('chat_history_response', {status : 1, message: data.message,sender_id: data.user_id});
 			});
 		}else{
 			var conversation_id = connection.query('insert into conversation_user_mapping (`from_id`, `to_id`) values ("'+data.user_id+'", "'+data.sender_id+'")');
@@ -240,8 +270,9 @@ sendNewMessage = function(data){
 					to_id.push(user);
 				})
 				.on('end', function() {
-					console.log(to_id);
-					io.to(to_id[0].socket_session_id).emit('chat_history_response', {status : 1, message: data.message});
+					console.log(to_id[0]);
+					console.log({status : 1, message: data.message,sender_id: data.user_id});
+					io.to(to_id[0].socket_session_id).emit('chat_history_response', {status : 1, message: data.message,sender_id: data.user_id});
 				});
 			});
 		}
