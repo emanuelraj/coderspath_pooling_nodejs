@@ -8,8 +8,8 @@ var app = require('http').createServer(),
   connection = mysql.createConnection({
     host: '127.0.0.1',
     user: 'root',
-	//password: '',
-    password: 'root',
+	password: '',
+ //   password: 'root',
     database: 'pooling',
     port: 3306
   });
