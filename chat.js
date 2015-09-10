@@ -24,12 +24,13 @@ connection.connect(function(err) {
 });
 
 console.log("Before Port");
-app.listen(process.env.OPENSHIFT_NODEJS_PORT, process.env.OPENSHIFT_NODEJS_IP, function(){
+
+/* app.listen(process.env.OPENSHIFT_NODEJS_PORT, process.env.OPENSHIFT_NODEJS_IP, function(){
   console.log("Listening on " + process.env.OPENSHIFT_NODEJS_IP + ", server_port " + process.env.OPENSHIFT_NODEJS_PORT)
 });
-
+ */
 // creating the server ( http://192.168.1.135:8000 )
-//app.listen(process.env.OPENSHIFT_NODEJS_PORT);
+app.listen(process.env.OPENSHIFT_NODEJS_PORT);
 
 
 io.sockets.on('connection', function(socket) {
