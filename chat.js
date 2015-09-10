@@ -14,8 +14,8 @@ var app = require('http').createServer(),
     port: 3306
   });
 
-var server_port = process.env.OPENSHIFT_NODEJS_PORT || 8080;
-var server_ip_address = process.env.OPENSHIFT_NODEJS_IP || '127.0.0.1';
+//var server_port = process.env.OPENSHIFT_NODEJS_PORT || 8080;
+//var server_ip_address = process.env.OPENSHIFT_NODEJS_IP || '127.0.0.1';
 
 
 connection.connect(function(err) {
@@ -23,8 +23,8 @@ connection.connect(function(err) {
   console.log(err);
 });
 
-app.listen(server_port, server_ip_address, function(){
-  console.log("Listening on " + server_ip_address + ", server_port " + server_port)
+app.listen(process.env.OPENSHIFT_NODEJS_PORT, process.env.OPENSHIFT_NODEJS_IP, function(){
+  console.log("Listening on " + process.env.OPENSHIFT_NODEJS_IP + ", server_port " + process.env.OPENSHIFT_NODEJS_PORT)
 });
 
 // creating the server ( http://192.168.1.135:8000 )
