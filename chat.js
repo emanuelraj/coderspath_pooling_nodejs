@@ -20,7 +20,7 @@ connection.connect(function(err) {
 });
 
 // creating the server ( http://192.168.1.135:8000 )
-app.listen(8080);
+app.listen(process.env.OPENSHIFT_NODEJS_PORT);
 
 
 io.sockets.on('connection', function(socket) {
