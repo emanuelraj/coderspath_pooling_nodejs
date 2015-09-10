@@ -6,9 +6,9 @@ var app = require('http').createServer(),
   mysql = require('mysql'),
   connectionsArray = [],
   connection = mysql.createConnection({
-    host: '127.0.0.1',
-    user: 'root',
-	password: '',
+    host: '127.9.110.130',
+    user: 'adminKAPFfN6',
+	password: 'ezqexj-2xica',
  //   password: 'root',
     database: 'pooling',
     port: 3306
